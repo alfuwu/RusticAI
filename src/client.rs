@@ -105,10 +105,11 @@ impl AsyncClient {
 #[tokio::main]
 pub async fn main() {
     let d = AsyncClient::new(Some("TOKEN_HERE".to_string())).await;
-    println!("HEADERS: {:?}\n\n", d.get_headers(None).await);
-    println!("PROFILE: {:?}\n\n", d.account().await.fetch_profile().await);
-    println!("SETTINGS: {:?}\n\n", d.account().await.fetch_settings().await);
-    println!("FOLLOWERS: {:?}\n\n", d.account().await.fetch_followers().await);
-    println!("FOLLOWING: {:?}\n\n", d.account().await.fetch_following().await);
-    println!("PERSONAS: {:?}\n\n", d.account().await.fetch_personas().await);
+    println!("\x1b[1m\x1b[32mHEADERS\x1b[0m: {:?}", d.get_headers(None).await);
+    println!("\x1b[1m\x1b[32mPROFILE\x1b[0m: {:?}", d.account().await.fetch_profile().await);
+    println!("\x1b[1m\x1b[32mSETTINGS\x1b[0m: {:?}", d.account().await.fetch_settings().await);
+    println!("\x1b[1m\x1b[32mFOLLOWERS\x1b[0m: {:?}", d.account().await.fetch_followers().await);
+    println!("\x1b[1m\x1b[32mFOLLOWING\x1b[0m: {:?}", d.account().await.fetch_following().await);
+    println!("\x1b[1m\x1b[32mPERSONAS\x1b[0m: {:?}", d.account().await.fetch_personas().await);
+    println!("\x1b[1m\x1b[32mCHARS\x1b[0m: {:?}", d.account().await.fetch_characters_ranked().await);
 }
