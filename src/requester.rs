@@ -1,4 +1,4 @@
-use reqwest::{Client, Response as ReqwestResponse};
+use reqwest::{Client, Response as ReqwestResponse, Body};
 use std::{sync::Arc, collections::HashMap};
 use tokio::{net::TcpStream, sync::RwLock};
 use tokio_tungstenite::{connect_async, tungstenite::{protocol::Message, ClientRequestBuilder}, MaybeTlsStream, WebSocketStream};
@@ -17,15 +17,14 @@ pub enum RequesterError {
     WsError,
 }
 
-#[derive(Debug, Clone)]
 pub struct RequestOptions {
     pub method: String,
     pub headers: HashMap<String, String>,
-    pub body: Option<String>,
+    pub body: Option<Body>,
 }
 
 impl RequestOptions {
-    pub fn new(method: impl Into<String>, headers: HashMap<String, String>, body: Option<String>) -> Self {
+    pub fn new(method: impl Into<String>, headers: HashMap<String, String>, body: Option<Body>) -> Self {
         Self { method: method.into(), headers, body }
     }
 }
@@ -52,11 +51,11 @@ impl Requester {
         }
     }
 
-    pub async fn request_async(
+    pub async fn request_resp_async(
         &self,
         url: impl Into<String>,
         options: RequestOptions,
-    ) -> Result<Value, RequesterError> {
+    ) -> Result<ReqwestResponse, RequesterError> {
         let url = url.into();
         let mut req = match options.method.as_str() {
             "GET" => self.client.get(url),
@@ -80,8 +79,16 @@ impl Requester {
         if res.status() == 401 {
             return Err(RequesterError::AuthenticationError);
         }
+        
+        Ok(res)
+    }
 
-        let text = res.text().await.map_err(|_| RequesterError::RequestFailed)?;
+    pub async fn request_async(
+        &self,
+        url: impl Into<String>,
+        options: RequestOptions,
+    ) -> Result<Value, RequesterError> {
+        let text = self.request_resp_async(url, options).await?.text().await.map_err(|_| RequesterError::RequestFailed)?;
         let json: Value = serde_json::from_str(&text).map_err(|_| RequesterError::RequestFailed)?;
         Ok(json)
     }

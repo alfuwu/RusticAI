@@ -1,11 +1,13 @@
 use std::{sync::Arc, collections::HashMap};
 use tokio::sync::RwLock;
 
-use crate::{methods::*, requester::*};
+use crate::{methods::*, requester::*, types::user::Account};
 
 pub struct AsyncClient {
     token: RwLock<Option<String>>,
     requester: Arc<Requester>,
+
+    pub data: RwLock<Account>,
 
     pub account: RwLock<Option<AccountMethods>>,
     pub user: RwLock<Option<UserMethods>>,
@@ -14,59 +16,46 @@ pub struct AsyncClient {
     pub utils: RwLock<Option<UtilsMethods>>,
 }
 
-#[async_trait::async_trait]
-pub trait HeaderProvider: Send + Sync {
-    async fn get_headers(&self, token: Option<String>) -> HashMap<String, String>;
-}
-
-#[async_trait::async_trait]
-impl HeaderProvider for AsyncClient {
-    async fn get_headers(&self, token: Option<String>) -> HashMap<String, String> {
-        let tokey_tokey: &String;
-        let read = self.token.read().await;
-        if token.is_none() {
-            if read.is_none() {
-                panic!("No token found.");
-            }
-            tokey_tokey = read.as_ref().unwrap();
-        } else {
-            tokey_tokey = token.as_ref().unwrap();
-        }
-
-        let mut headers = HashMap::new();
-        headers.insert("authorization".to_string(), format!("Token {}", tokey_tokey));
-        headers.insert("Content-Type".to_string(), "application/json".to_string());
-
-        headers
-    }
-}
-
 impl AsyncClient {
     pub async fn new(token: Option<String>) -> Arc<Self> {
         let requester = Arc::new(Requester::new());
 
-        let client = Arc::new(AsyncClient {
+        let client = Self {
             token: RwLock::new(token),
             requester: requester.clone(),
+            
+            data: RwLock::new(Account::default()),
 
             account: RwLock::new(None),
             user: RwLock::new(None),
             chat: RwLock::new(None),
             character: RwLock::new(None),
             utils: RwLock::new(None),
-        });
+        };
+        
+        let arc = Arc::new(client);
 
-        let header_provider = client.clone() as Arc<dyn HeaderProvider>;
+        let header_provider = arc.clone();
 
         {
-            *client.account.write().await = Some(AccountMethods::new(requester.clone(), header_provider.clone()));
-            *client.user.write().await = Some(UserMethods::new(requester.clone(), header_provider.clone()));
-            *client.chat.write().await = Some(ChatMethods::new(requester.clone(), header_provider.clone()));
-            *client.character.write().await = Some(CharacterMethods::new(requester.clone(), header_provider.clone()));
-            *client.utils.write().await = Some(UtilsMethods::new(requester.clone(), header_provider.clone()));
+            *arc.account.write().await = Some(AccountMethods::new(requester.clone(), header_provider.clone()));
+            *arc.user.write().await = Some(UserMethods::new(requester.clone(), header_provider.clone()));
+            *arc.chat.write().await = Some(ChatMethods::new(requester.clone(), header_provider.clone()));
+            *arc.character.write().await = Some(CharacterMethods::new(requester.clone(), header_provider.clone()));
+            *arc.utils.write().await = Some(UtilsMethods::new(requester.clone(), header_provider.clone()));
+            
+            arc.set_data(arc.account().await.fetch_profile().await).await;
         }
 
-        client
+        arc
+    }
+
+    pub async fn token(&self) -> String {
+        self.token.read().await.as_ref().unwrap().clone()
+    }
+
+    pub async fn data(&self) -> Account {
+        self.data.read().await.as_ref().clone()
     }
 
     pub async fn account(&self) -> Arc<AccountMethods> {
@@ -89,9 +78,32 @@ impl AsyncClient {
         Arc::new(self.utils.read().await.as_ref().unwrap().clone())
     }
 
-    //pub async fn set_token(&mut self, token: impl Into<String>) {
-    //    *self.token.write().await = Some(token.into());
-    //}
+    pub async fn set_token(&self, token: impl Into<String>) {
+        *self.token.write().await = Some(token.into());
+    }
+
+    pub async fn set_data(&self, account: impl Into<Account>) {
+        *self.data.write().await = account.into();
+    }
+
+    pub async fn get_headers(&self, token: Option<String>) -> HashMap<String, String> {
+        let tokey_tokey: &String;
+        let read = self.token.read().await;
+        if token.is_none() {
+            if read.is_none() {
+                panic!("No token found.");
+            }
+            tokey_tokey = read.as_ref().unwrap();
+        } else {
+            tokey_tokey = token.as_ref().unwrap();
+        }
+
+        let mut headers = HashMap::new();
+        headers.insert("authorization".to_string(), format!("Token {}", tokey_tokey));
+        headers.insert("Content-Type".to_string(), "application/json".to_string());
+
+        headers
+    }
 
     pub fn get_requester(&self) -> Arc<Requester> {
         self.requester.clone()
@@ -104,12 +116,16 @@ impl AsyncClient {
 
 #[tokio::main]
 pub async fn main() {
-    let d = AsyncClient::new(Some("TOKEN_HERE".to_string())).await;
+    let d = AsyncClient::new(Some("9912bd86846346c083cf48cd88f7300a114cf5c7".to_string())).await;
+    let da = d.account().await;
+    let account: Account = da.fetch_profile().await;
+    assert!(account == d.data().await);
     println!("\x1b[1m\x1b[32mHEADERS\x1b[0m: {:?}", d.get_headers(None).await);
-    println!("\x1b[1m\x1b[32mPROFILE\x1b[0m: {:?}", d.account().await.fetch_profile().await);
-    println!("\x1b[1m\x1b[32mSETTINGS\x1b[0m: {:?}", d.account().await.fetch_settings().await);
-    println!("\x1b[1m\x1b[32mFOLLOWERS\x1b[0m: {:?}", d.account().await.fetch_followers().await);
-    println!("\x1b[1m\x1b[32mFOLLOWING\x1b[0m: {:?}", d.account().await.fetch_following().await);
-    println!("\x1b[1m\x1b[32mPERSONAS\x1b[0m: {:?}", d.account().await.fetch_personas().await);
-    println!("\x1b[1m\x1b[32mCHARS\x1b[0m: {:?}", d.account().await.fetch_characters_ranked().await);
+    println!("\x1b[1m\x1b[32mPROFILE\x1b[0m: {:?}", account);
+    println!("\x1b[1m\x1b[32mSETTINGS\x1b[0m: {:?}", da.fetch_settings().await);
+    println!("\x1b[1m\x1b[32mFOLLOWERS\x1b[0m: {:?}", da.fetch_followers().await);
+    println!("\x1b[1m\x1b[32mFOLLOWING\x1b[0m: {:?}", da.fetch_following().await);
+    println!("\x1b[1m\x1b[32mPERSONAS\x1b[0m: {:?}", da.fetch_personas().await[0]);
+    println!("\x1b[1m\x1b[32mCHARS\x1b[0m: {:?}", da.fetch_characters_ranked().await[0]);
+    println!("\x1b[1m\x1b[32mEDIT ACC SUCCEEDED\x1b[0m: {}", da.edit_account(&account.name, &account.username, Some(&account.bio), if let Some(avi) = &account.avatar { Some(&avi.file_name) } else { None }).await);
 }

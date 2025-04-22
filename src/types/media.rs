@@ -2,7 +2,7 @@ use serde_json::{json, Value};
 
 use crate::types::enums::*;
 
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Avatar {
     pub file_name: String,
 }
@@ -10,6 +10,10 @@ pub struct Avatar {
 impl Avatar {
     pub fn new(file_name: impl Into<String>) -> Self {
         Self { file_name: file_name.into() }
+    }
+
+    pub fn default() -> Self {
+        Self::new("")
     }
 
     pub fn from_json(json: &Value) -> Option<Self> {
@@ -25,7 +29,7 @@ impl Avatar {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Voice {
     pub id: String,
     pub name: String,
@@ -68,8 +72,8 @@ impl Voice {
             json.get("id").unwrap_or(&blank).as_str().unwrap(),
             json.get("name").unwrap_or(&blank).as_str().unwrap(),
             json.get("description").unwrap_or(&blank).as_str().unwrap(),
-            Gender::from_str(json.get("gender").unwrap_or(&json!("neutral")).as_str().unwrap()),
-            Visibility::from_str(json.get("visibility").unwrap_or(&json!("PRIVATE")).as_str().unwrap()),
+            Gender::from_string(json.get("gender").unwrap_or(&json!("neutral")).as_str().unwrap()),
+            Visibility::from_string(json.get("visibility").unwrap_or(&json!("PRIVATE")).as_str().unwrap()),
             json.get("preview_text").unwrap_or(&blank).as_str().unwrap(),
             json.get("preview_audio_uri").and_then(|v| v.as_str().map(String::from)),
             creator.get("id").and_then(|v| v.as_str().map(String::from)),
@@ -77,5 +81,28 @@ impl Voice {
             json.get("last_update").and_then(|v| v.as_str().map(String::from)),
             json.get("internal_status").unwrap_or(&blank).as_str().unwrap(),
         )
+    }
+}
+
+pub enum VoiceOrId {
+    Voice(Voice),
+    Id(String),
+}
+
+impl From<Voice> for VoiceOrId {
+    fn from(v: Voice) -> Self {
+        VoiceOrId::Voice(v)
+    }
+}
+
+impl From<String> for VoiceOrId {
+    fn from(s: String) -> Self {
+        VoiceOrId::Id(s)
+    }
+}
+
+impl<'a> From<&'a str> for VoiceOrId {
+    fn from(s: &'a str) -> Self {
+        VoiceOrId::Id(s.to_string())
     }
 }

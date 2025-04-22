@@ -3,7 +3,9 @@ use serde_json::{json, Value};
 
 use crate::types::media::*;
 
-#[derive(Debug)]
+use super::character::PartialCharacter;
+
+#[derive(Debug, Clone, PartialEq)]
 pub struct Account {
     pub id: i32,
     pub email: Option<String>,
@@ -31,6 +33,20 @@ impl Account {
         }
     }
 
+    pub fn default() -> Self {
+        Self::new(
+            0,
+            None,
+            "".to_string(),
+            "".to_string(),
+            "".to_string(),
+            None,
+            None,
+            None,
+            false
+        )
+    }
+
     pub fn from_json(json: &Value) -> Self {
         let acc = json.get("account").expect("account key should be present within JSON Value provided");
 
@@ -48,26 +64,123 @@ impl Account {
             json.get("is_human").unwrap_or(&json!(true)).as_bool().unwrap()
         )
     }
+
+    pub fn to_json(&self) -> Value {
+        json!({
+            "id": self.id,
+            "email": self.email,
+            "username": self.username,
+            "bio": self.bio,
+            "first_name": self.first_name,
+            "is_human": self.is_human,
+            "account": {
+                "name": self.name,
+                "avatar_file_name": self.avatar.as_ref().map(|a| &a.file_name),
+                "avatar_type": self.avatar_type
+            }
+        })
+    }
+}
+
+impl AsRef<Account> for Account {
+    fn as_ref(&self) -> &Account {
+        self
+    }
+}
+
+#[derive(Debug)]
+pub struct User {
+    pub username: String,
+    pub name: String,
+    pub bio: String,
+    pub avatar: Option<Avatar>,
+    pub num_following: i32,
+    pub num_followers: i32,
+    pub characters: Vec<PartialCharacter>,
+    pub subscription_type: String
+}
+
+impl User {
+    pub fn new(username: impl Into<String>, name: impl Into<String>, bio: impl Into<String>, avatar: Option<Avatar>, num_following: i32, num_followers: i32, characters: Vec<PartialCharacter>, subscription_type: impl Into<String>) -> Self {
+        Self { 
+            username: username.into(),
+            name: name.into(),
+            bio: bio.into(),
+            avatar,
+            num_following,
+            num_followers,
+            characters,
+            subscription_type: subscription_type.into()
+        }
+    }
+
+    pub fn from_json(json: &Value) -> Self {
+        let blank = json!("");
+        let blank_num = json!(0);
+
+        Self::new(
+            json.get("username").unwrap_or(&blank).as_str().unwrap(),
+            json.get("name").unwrap_or(&blank).as_str().unwrap(),
+            json.get("bio").unwrap_or(&blank).as_str().unwrap(),
+            Avatar::from_json(&json),
+            json.get("num_following").unwrap_or(&blank_num).as_i64().unwrap() as i32,
+            json.get("num_followers").unwrap_or(&blank_num).as_i64().unwrap() as i32,
+            json.get("characters").unwrap_or(&json!([])).as_array().unwrap().into_iter().map(|v| PartialCharacter::from_json(&v)).collect(),
+            json.get("subscription_type").unwrap_or(&blank).as_str().unwrap_or("NONE")
+        )
+    }
+
+    pub fn to_json(&self) -> Value {
+        json!({
+            "username": self.username,
+            "name": self.name,
+            "bio": self.bio,
+            "avatar_file_name": self.avatar.as_ref().map(|a| &a.file_name),
+            "num_following": self.num_following,
+            "num_followers": self.num_followers,
+            "characters": self.characters.iter().map(|c| c.to_json()).collect::<Vec<_>>(),
+            "subscription_type": self.subscription_type
+        })
+    }
 }
 
 #[derive(Debug)]
 pub struct Persona {
     pub id: String,
     pub name: String,
+    pub greeting: String,
+    pub description: String,
     pub definition: String,
     pub avatar: Option<Avatar>,
+    pub archived: bool,
     pub author_username: Option<String>
 }
 
 impl Persona {
-    pub fn new(id: impl Into<String>, name: impl Into<String>, definition: impl Into<String>, avatar: Option<Avatar>, author_username: Option<String>) -> Self {
+    pub fn new(id: impl Into<String>, name: impl Into<String>, greeting: impl Into<String>, description: impl Into<String>, definition: impl Into<String>, avatar: Option<Avatar>, archived: bool, author_username: Option<String>) -> Self {
         Self {
             id: id.into(),
             name: name.into(),
+            greeting: greeting.into(),
+            description: description.into(),
             definition: definition.into(),
+            archived,
             avatar,
             author_username
         }
+    }
+
+    pub fn default() -> Self {
+        Self::new(
+            "".to_string(),
+            "".to_string(),
+            "Hello! This is my persona".to_string(),
+            "This is my persona.".to_string(),
+            "".to_string(),
+            None,
+            true,
+            None
+        )
     }
 
     pub fn from_json(json: &Value) -> Self {
@@ -76,10 +189,23 @@ impl Persona {
         Self::new(
             json.get("external_id").unwrap_or(&blank).as_str().unwrap(),
             json.get("participant__name").unwrap_or(json.get("name").unwrap_or(&blank)).as_str().unwrap(),
+            json.get("greeting").unwrap_or(&blank).as_str().unwrap_or("Hello! This is my persona"),
+            json.get("description").unwrap_or(&blank).as_str().unwrap_or("This is my persona."),
             json.get("definition").unwrap_or(&blank).as_str().unwrap(),
             Avatar::from_json(&json),
+            json.get("archived").unwrap_or(&json!(false)).as_bool().unwrap_or(false),
             json.get("author_username").and_then(|v| v.as_str().map(String::from))
         )
+    }
+    
+    pub fn to_json(&self) -> Value {
+        json!({
+            "external_id": self.id,
+            "participant__name": self.name,
+            "definition": self.definition,
+            "avatar_file_name": self.avatar.as_ref().map(|a| &a.file_name),
+            "author_username": self.author_username
+        })
     }
 }
 

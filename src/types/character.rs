@@ -69,7 +69,7 @@ impl Character {
             json.get("definition").unwrap_or(&blank).as_str().unwrap_or(""),
             json.get("greeting").unwrap_or(&blank).as_str().unwrap(),
             Avatar::from_json(&json),
-            Visibility::from_str(json.get("visibility").unwrap_or(&json!("PUBLIC")).as_str().unwrap()),
+            Visibility::from_string(json.get("visibility").unwrap_or(&json!("PUBLIC")).as_str().unwrap()),
             json.get("upvotes").and_then(|v| v.as_i64().map(i64::from)),
             json.get("title").unwrap_or(&blank).as_str().unwrap(),
             json.get("user__username").and_then(|v| v.as_str().map(String::from)),
@@ -81,12 +81,42 @@ impl Character {
             json.get("copyable").unwrap_or(&blank_bool).as_bool().unwrap(),
             json.get("starter_prompts").unwrap_or(&json!({})).as_object().unwrap().clone(),
             json.get("comments_enabled").unwrap_or(&blank_bool).as_bool().unwrap(),
-            json.get("starter_prompts").unwrap_or(&json!([])).as_array().unwrap().into_iter().filter_map(|v| v.as_str()).map(|v| v.to_string()).collect(),
+            json.get("songs").unwrap_or(&json!([])).as_array().unwrap().into_iter().filter_map(|v| v.as_str()).map(|v| v.to_string()).collect(),
             json.get("img_gen_enabled").unwrap_or(&blank_bool).as_bool().unwrap(),
             json.get("base_img_prompt").unwrap_or(&blank).as_str().unwrap(),
             json.get("img_prompt_regex").unwrap_or(&blank).as_str().unwrap(),
             json.get("strip_img_prompt_from_msg").unwrap_or(&blank_bool).as_bool().unwrap(),
         )
+    }
+
+    pub fn to_json(&self) -> Value {
+        let avi_file = if self.avatar.is_none() { Value::Null } else { json!(&self.avatar.as_ref().unwrap().file_name) };
+
+        json!({
+            "external_id": self.id,
+            "participant__name": self.name,
+            "description": self.description,
+            "definition": self.definition,
+            "avatar_file_name": avi_file,
+            "avatar_rel_path": avi_file,
+            "visibility": self.visibility.to_string(),
+            "upvotes": self.upvotes.unwrap_or(0),
+            "title": self.title,
+            "user__username": self.author_username.as_ref().unwrap_or(&"".to_string()),
+            "participant__num_interactions": self.num_interactions.unwrap_or(0),
+            "participant__user__username": self.internal_id,
+            "voice_id": self.voice_id,
+            "default_voice_id": self.default_voice_id,
+            "identifier": self.identifier,
+            "copyable": self.copyable,
+            "starter_prompts": self.starter_prompts,
+            "comments_enabled": self.comments_enabled,
+            "songs": self.songs,
+            "img_gen_enabled": self.image_gen_enabled,
+            "base_img_prompt": self.base_image_prompt,
+            "img_prompt_regex": self.image_prompt_regex,
+            "strip_img_prompt_from_msg": self.strip_image_prompt_from_message
+        })
     }
 }
 
@@ -132,11 +162,29 @@ impl PartialCharacter {
             json.get("definition").unwrap_or(&blank).as_str().unwrap_or(""),
             json.get("greeting").unwrap_or(&blank).as_str().unwrap(),
             Avatar::from_json(&json),
-            Visibility::from_str(json.get("visibility").unwrap_or(&json!("PUBLIC")).as_str().unwrap_or("PUBLIC")),
+            Visibility::from_string(json.get("visibility").unwrap_or(&json!("PUBLIC")).as_str().unwrap_or("PUBLIC")),
             json.get("upvotes").and_then(|v| v.as_i64().map(i64::from)),
             json.get("title").unwrap_or(&blank).as_str().unwrap(),
             json.get("user__username").and_then(|v| v.as_str().map(String::from)),
             json.get("participant__num_interactions").and_then(|v| v.as_i64().map(i64::from))
         )
+    }
+
+    pub fn to_json(&self) -> Value {
+        let avi_file = if self.avatar.is_none() { Value::Null } else { json!(&self.avatar.as_ref().unwrap().file_name) };
+
+        json!({
+            "external_id": self.id,
+            "participant__name": self.name,
+            "description": self.description,
+            "definition": self.definition,
+            "avatar_file_name": avi_file,
+            "avatar_rel_path": avi_file,
+            "visibility": self.visibility.to_string(),
+            "upvotes": self.upvotes.unwrap_or(0),
+            "title": self.title,
+            "user__username": self.author_username.as_ref().unwrap_or(&"".to_string()),
+            "participant__num_interactions": self.num_interactions.unwrap_or(0)
+        })
     }
 }
