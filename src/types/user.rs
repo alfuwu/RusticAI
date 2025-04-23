@@ -7,7 +7,7 @@ use super::character::PartialCharacter;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Account {
-    pub id: i32,
+    pub id: i64,
     pub email: Option<String>,
     pub username: String,
     pub name: String,
@@ -19,7 +19,7 @@ pub struct Account {
 }
 
 impl Account {
-    pub fn new(id: i32, email: Option<String>, username: impl Into<String>, name: impl Into<String>, bio: impl Into<String>, avatar: Option<Avatar>, avatar_type: Option<String>, first_name: Option<String>, is_human: bool) -> Self {
+    pub fn new(id: i64, email: Option<String>, username: impl Into<String>, name: impl Into<String>, bio: impl Into<String>, avatar: Option<Avatar>, avatar_type: Option<String>, first_name: Option<String>, is_human: bool) -> Self {
         Self { 
             id,
             email,
@@ -53,7 +53,7 @@ impl Account {
         let blank = json!("");
 
         Self::new(
-            json.get("id").unwrap_or(&json!(0)).as_i64().unwrap() as i32,
+            json.get("id").unwrap_or(&json!(0)).as_i64().unwrap(),
             json.get("email").and_then(|v| v.as_str().map(String::from)),
             json.get("username").unwrap_or(&blank).as_str().unwrap(),
             acc.get("name").unwrap_or(&blank).as_str().unwrap(),
