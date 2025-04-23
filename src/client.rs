@@ -119,14 +119,14 @@ impl AsyncClient {
 pub async fn main() {
     let d = AsyncClient::new(Some("9912bd86846346c083cf48cd88f7300a114cf5c7".to_string())).await;
     let da = d.account().await;
-    let account: Account = da.fetch_profile().await.expect("fuck");
+    let account: Account = da.fetch_profile().await.expect("");
     assert!(account == d.data().await);
     println!("\x1b[1m\x1b[32mHEADERS\x1b[0m: {:?}", d.get_headers(None).await);
     println!("\x1b[1m\x1b[32mPROFILE\x1b[0m: {:?}", account);
-    println!("\x1b[1m\x1b[32mSETTINGS\x1b[0m: {:?}", da.fetch_settings().await.expect("fuck"));
-    println!("\x1b[1m\x1b[32mFOLLOWERS\x1b[0m: {:?}", da.fetch_followers().await.expect("fuck"));
-    println!("\x1b[1m\x1b[32mFOLLOWING\x1b[0m: {:?}", da.fetch_following().await.expect("fuck"));
-    println!("\x1b[1m\x1b[32mPERSONAS\x1b[0m: {:?}", da.fetch_personas().await.expect("fuck")[0]);
-    println!("\x1b[1m\x1b[32mCHARS\x1b[0m: {:?}", da.fetch_characters_ranked().await.expect("fuck")[0]);
-    println!("\x1b[1m\x1b[32mEDIT ACC SUCCEEDED\x1b[0m: {}", da.edit_account(&account.name, &account.username, Some(&account.bio), if let Some(avi) = &account.avatar { Some(&avi.file_name) } else { None }).await.expect("fuck"));
+    println!("\x1b[1m\x1b[32mSETTINGS\x1b[0m: {:?}", da.fetch_settings().await.expect(""));
+    println!("\x1b[1m\x1b[32mFOLLOWERS\x1b[0m: {:?}", da.fetch_followers().await.expect(""));
+    println!("\x1b[1m\x1b[32mFOLLOWING\x1b[0m: {:?}", da.fetch_following().await.expect(""));
+    println!("\x1b[1m\x1b[32mPERSONAS\x1b[0m: {:?}", da.fetch_personas().await.expect("")[0]);
+    println!("\x1b[1m\x1b[32mCHARS\x1b[0m: {:?}", da.fetch_characters_ranked().await.expect("")[0]);
+    println!("\x1b[1m\x1b[32mEDIT ACC SUCCEEDED\x1b[0m: {}", da.edit_account(&account.name, &account.username, Some(&account.bio), if let Some(avi) = &account.avatar { Some(&avi.file_name) } else { None }).await.expect(""));
 }

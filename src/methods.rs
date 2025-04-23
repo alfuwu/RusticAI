@@ -1,6 +1,6 @@
 use std::{sync::Arc, collections::HashMap};
 use tokio::pin;
-use futures_util::{Stream, StreamExt, stream::once};
+use futures_util::{Stream, StreamExt};
 use async_stream::stream;
 use rand::Rng;
 use base64::{Engine, engine::general_purpose};
@@ -611,40 +611,38 @@ impl ChatMethods {
     
         false
     }
-    
-    pub async fn send_message_stream(&self, character_id: impl Into<&String>, chat_id: impl Into<&String>, text: impl Into<&String>) -> Result<impl Stream<Item = Turn>, RequesterError> {
-        let candidate_id = Uuid::new_v4().to_string();
-        let turn_id = Uuid::new_v4().to_string();
-        let request_id = Uuid::new_v4().to_string();
-        
+
+    pub fn default_annotations(&self) -> Value {
+        json!({
+            "bad_memory": 0,
+            "boring": 0,
+            "ends_chat_early": 0,
+            "funny": 0,
+            "helpful": 0,
+            "inaccurate": 0,
+            "interesting": 0,
+            "long": 0,
+            "not_bad_memory": 0,
+            "not_boring": 0,
+            "not_ends_chat_early": 0,
+            "not_funny": 0,
+            "not_helpful": 0,
+            "not_inaccurate": 0,
+            "not_interesting": 0,
+            "not_long": 0,
+            "not_out_of_character": 0,
+            "not_repetitive": 0,
+            "not_short": 0,
+            "out_of_character": 0,
+            "repetitive": 0,
+            "short": 0,
+        })
+    }
+
+    async fn send_ws_internal(&self, json: Value, allow_add_turn: bool, return_immediately: bool) -> Result<impl Stream<Item = Turn>, RequesterError> {
         let ret_stream = stream! {
-            let json = json!({
-                "command": "create_and_generate_turn",
-                "origin_id": "web-next",
-                "payload": {
-                    "character_id": character_id.into(),
-                    "num_candidates": 1,
-                    "previous_annotations": "self.default_annotations()",
-                    "selected_language": "",
-                    "tts_enabled": false,
-                    "turn": {
-                        "author": {
-                            "author_id": self.client.data().await.id,
-                            "is_human": true,
-                            "name": "",
-                        },
-                        "candidates": [{
-                            "candidate_id": candidate_id,
-                            "raw_content": text.into(),
-                        }],
-                        "primary_candidate_id": candidate_id,
-                        "turn_key": { "chat_id": chat_id.into(), "turn_id": turn_id },
-                    },
-                    "user_name": ""
-                },
-                "request_id": request_id,
-            });
             let resp = self.requester.ws_send_and_receive(&json, self.client.token().await).await;
+
             if let Ok(stream) = resp {
                 pin!(stream);
 
@@ -652,7 +650,7 @@ impl ChatMethods {
                     let raw = raw.expect("WebSocket connection error");
             
                     match raw.get("command").and_then(|v| v.as_str()) {
-                        val if val == Some("add_turn") || val == Some("update_turn") => {
+                        val if val == Some("add_turn") && allow_add_turn || val == Some("update_turn") => {
                             if raw["turn"]["author"]["is_human"].as_bool().unwrap_or(false) {
                                 continue;
                             }
@@ -660,7 +658,7 @@ impl ChatMethods {
                             let turn = Turn::from_json(&raw["turn"]);
                             yield turn.clone();
             
-                            if turn.get_primary_candidate().map_or(false, |c| c.is_final) {
+                            if turn.get_primary_candidate().map_or(false, |c| c.is_final) || return_immediately {
                                 break;
                             }
                         },
@@ -676,19 +674,91 @@ impl ChatMethods {
     
         Ok(ret_stream)
     }
-    
 
-    pub async fn send_message(&self, character_id: impl Into<&String>, chat_id: impl Into<&String>, text: impl Into<&String>) -> Result<Turn, RequesterError> {
-        let stream = self.send_message_stream(character_id, chat_id, text).await?;
+    async fn flatten_stream_internal<T>(&self, stream: impl Stream<Item = T>) -> Result<T, RequesterError> {
         pin!(stream);
 
-        let mut last_turn = Err(RequesterError::RequestFailed("could not find Turn".to_string()));
+        let mut last_t = Err(RequesterError::RequestFailed("stream is empty".to_string()));
 
-        while let Some(turn) = stream.next().await {
-            last_turn = Ok(turn);
+        while let Some(t) = stream.next().await {
+            last_t = Ok(t);
         }
         
-        last_turn
+        last_t
+    }
+    
+    pub async fn send_message_stream(&self, character_id: impl Into<&String>, chat_id: impl Into<&String>, text: impl Into<&String>) -> Result<impl Stream<Item = Turn>, RequesterError> {
+        let candidate_id = Uuid::new_v4().to_string();
+        let turn_id = Uuid::new_v4().to_string();
+        let request_id = Uuid::new_v4().to_string();
+        
+        Ok(self.send_ws_internal(json!({
+            "command": "create_and_generate_turn",
+            "origin_id": "web-next",
+            "payload": {
+                "character_id": character_id.into(),
+                "num_candidates": 1,
+                "previous_annotations": self.default_annotations(),
+                "selected_language": "",
+                "tts_enabled": false,
+                "turn": {
+                    "author": {
+                        "author_id": self.client.data().await.id,
+                        "is_human": true,
+                        "name": "",
+                    },
+                    "candidates": [{
+                        "candidate_id": candidate_id,
+                        "raw_content": text.into(),
+                    }],
+                    "primary_candidate_id": candidate_id,
+                    "turn_key": { "chat_id": chat_id.into(), "turn_id": turn_id },
+                },
+                "user_name": ""
+            },
+            "request_id": request_id,
+        }), true, false).await?)
+    }
+    
+    pub async fn send_message(&self, character_id: impl Into<&String>, chat_id: impl Into<&String>, text: impl Into<&String>) -> Result<Turn, RequesterError> {
+        self.flatten_stream_internal(self.send_message_stream(character_id, chat_id, text).await?).await
+    }
+
+    pub async fn retry_response_stream(&self, character_id: impl Into<&String>, chat_id: impl Into<&String>, turn_id: impl Into<&String>) -> Result<impl Stream<Item = Turn>, RequesterError> {
+        let request_id = Uuid::new_v4().to_string();
+        
+        Ok(self.send_ws_internal(json!({
+            "command": "generate_turn_candidate",
+            "origin_id": "web-next",
+            "payload": {
+                "character_id": character_id.into(),
+                "previous_annotations": self.default_annotations(),
+                "selected_language": "",
+                "tts_enabled": false,
+                "turn_key": { "chat_id": chat_id.into(), "turn_id": turn_id.into() },
+                "user_name": ""
+            },
+            "request_id": request_id
+        }), true, false).await?)
+    }
+
+    pub async fn retry_response(&self, character_id: impl Into<&String>, chat_id: impl Into<&String>, turn_id: impl Into<&String>) -> Result<Turn, RequesterError> {
+        self.flatten_stream_internal(self.retry_response_stream(character_id, chat_id, turn_id).await?).await
+    }
+
+    pub async fn edit_message(&self, chat_id: impl Into<&String>, turn_id: impl Into<&String>, candidate_id: impl Into<&String>, text: impl Into<&String>) -> Result<Turn, RequesterError> {
+        let request_id = Uuid::new_v4().to_string();
+
+        self.flatten_stream_internal(self.send_ws_internal(json!({
+            "command": "edit_turn_candidate",
+            "origin_id": "web-next",
+            "payload": {
+                "new_candidate_raw_content": text.into(),
+                "current_candidate_id": candidate_id.into(),
+                "turn_key": { "chat_id": chat_id.into(), "turn_id": turn_id.into() }
+            },
+            "request_id": request_id
+        }), true, true).await?).await
     }
 }
 

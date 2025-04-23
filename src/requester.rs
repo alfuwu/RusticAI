@@ -160,7 +160,7 @@ impl Requester {
         if self.ws_client.read().await.is_none() {
             self.ws_connect(token).await?
         }
-        self.ws_send(message).await;
+        self.ws_send(message).await?;
         Ok(self.ws_receive().await)
     }
 }

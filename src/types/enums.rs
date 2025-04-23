@@ -1,6 +1,3 @@
-use serde_json::Value;
-use thiserror::Error;
-
 #[derive(Debug, Clone)]
 pub enum Gender {
     Neutral,
@@ -49,22 +46,4 @@ impl Visibility {
             Visibility::Public => "PUBLIC"
         }
     }
-}
-
-#[derive(Error, Debug, PartialEq)]
-pub enum ApiError {
-    #[error("")]
-    FetchError(String),
-    #[error("")]
-    EditError,
-    #[error("")]
-    UpdateError,
-    #[error("")]
-    CreateError,
-    #[error("")]
-    ActionError,
-    #[error("")]
-    DeleteError,
-    #[error("")]
-    SessionClosedError
 }
