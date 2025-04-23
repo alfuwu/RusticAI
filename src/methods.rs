@@ -648,7 +648,7 @@ impl ChatMethods {
 
                 while let Some(raw) = stream.next().await {
                     let raw = raw.expect("WebSocket connection error");
-            
+                    
                     match raw.get("command").and_then(|v| v.as_str()) {
                         val if val == Some("add_turn") && allow_add_turn || val == Some("update_turn") => {
                             if raw["turn"]["author"]["is_human"].as_bool().unwrap_or(false) {
@@ -759,6 +759,78 @@ impl ChatMethods {
             },
             "request_id": request_id
         }), true, true).await?).await
+    }
+
+    pub async fn delete_messages(&self, chat_id: impl Into<&String>, turn_ids: Vec<&String>) -> bool {
+        let request_id = Uuid::new_v4().to_string();
+    
+        let ws_message = json!({
+            "command": "remove_turns",
+            "origin_id": "web-next",
+            "request_id": request_id,
+            "payload": {
+                "chat_id": chat_id.into(),
+                "turn_ids": turn_ids
+            }
+        });
+    
+        let resp = self.requester.ws_send_and_receive(&ws_message, self.client.token().await).await;
+        if let Ok(stream) = resp {
+            pin!(stream);
+            
+            while let Some(raw) = stream.next().await {
+                let raw = raw.expect("WebSocket connection error");
+                
+                match raw.get("command").and_then(|v| v.as_str()) {
+                    Some("remove_turns_response") => {
+                        return true;
+                    },
+                    Some("neo_error") => {
+                        let comment = raw["comment"].as_str().unwrap_or("");
+                        panic!("cannot send message: {}", comment);
+                    },
+                    _ => {}
+                }
+            }
+        }
+    
+        false
+    }
+    
+    pub async fn set_turn_pin(&self, chat_id: impl Into<&String>, turn_id: impl Into<&String>, is_pinned: bool) -> bool {
+        let request_id = Uuid::new_v4().to_string();
+    
+        let ws_message = json!({
+            "command": "set_turn_pin",
+            "origin_id": "web-next",
+            "request_id": request_id,
+            "payload": {
+                "is_pinned": is_pinned,
+                "turn_key": { "chat_id": chat_id.into(), "turn_id": turn_id.into() }
+            }
+        });
+    
+        let resp = self.requester.ws_send_and_receive(&ws_message, self.client.token().await).await;
+        if let Ok(stream) = resp {
+            pin!(stream);
+            
+            while let Some(raw) = stream.next().await {
+                let raw = raw.expect("WebSocket connection error");
+                
+                match raw.get("command").and_then(|v| v.as_str()) {
+                    Some("update_turn") => {
+                        return raw["turn"]["is_pinned"].as_bool().unwrap_or(!is_pinned) == is_pinned;
+                    },
+                    Some("neo_error") => {
+                        let comment = raw["comment"].as_str().unwrap_or("");
+                        panic!("cannot send message: {}", comment);
+                    },
+                    _ => {}
+                }
+            }
+        }
+        
+        false
     }
 }
 
